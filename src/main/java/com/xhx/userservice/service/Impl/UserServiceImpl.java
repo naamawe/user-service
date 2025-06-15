@@ -7,22 +7,22 @@ import com.github.pagehelper.PageInfo;
 import com.xhx.userservice.client.PermissionClient;
 import com.xhx.userservice.common.exception.*;
 import com.xhx.userservice.common.util.JwtUtils;
-import com.xhx.userservice.common.util.LogDetailUtils;
+import com.xhx.userservice.common.util.RoleAccessHelper;
 import com.xhx.userservice.common.util.SnowflakeIdWorker;
 import com.xhx.userservice.config.JwtProperties;
-import com.xhx.userservice.config.RabbitMQConfig;
-import com.xhx.userservice.entiey.dto.LoginDTO;
-import com.xhx.userservice.entiey.dto.UserDTO;
-import com.xhx.userservice.entiey.dto.OperationLogDTO;
-import com.xhx.userservice.entiey.pojo.User;
-import com.xhx.userservice.entiey.vo.UserLoginVO;
-import com.xhx.userservice.entiey.vo.UserVO;
+import com.xhx.userservice.entity.dto.LoginDTO;
+import com.xhx.userservice.entity.dto.UserDTO;
+import com.xhx.userservice.entity.pojo.User;
+import com.xhx.userservice.entity.vo.UserLoginVO;
+import com.xhx.userservice.entity.vo.UserVO;
 import com.xhx.userservice.mapper.UserMapper;
 import com.xhx.userservice.service.UserService;
+
+import entity.dto.OperationLogDTO;
+import exception.MessageException;
 import io.seata.spring.annotation.GlobalTransactional;
 import javax.annotation.Resource;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +31,8 @@ import uitls.UserContext;
 
 import java.sql.Timestamp;
 import java.util.*;
+
+import static constant.mqConstant.*;
 
 /**
  * @author master
@@ -79,7 +81,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 发送消息到 RabbitMQ
-        constructAndSendMessage(user, ip, "user_register", "用户注册成功");
+        constructAndSendMessage(userId, ip, "user_register", "用户注册成功");
     }
 
     /**
@@ -99,7 +101,7 @@ public class UserServiceImpl implements UserService {
             throw new PasswordErrorException("密码错误");
         }
         String role = (String) permissionClient.getUserRoleCode(user.getUserId()).getData();
-        String token = jwtUtils.createToken(user.getUserId(), role, jwtProperties.getTokenTTL());
+        String token = jwtUtils.createToken(user.getUserId(), role, ip, jwtProperties.getTokenTTL());
 
         UserLoginVO userLoginVO = new UserLoginVO();
         userLoginVO.setUserId(user.getUserId());
@@ -107,7 +109,7 @@ public class UserServiceImpl implements UserService {
         userLoginVO.setToken(token);
 
         // 发送消息到 RabbitMQ
-        constructAndSendMessage(user, ip, "user_login", "用户登录成功");
+        constructAndSendMessage(user.getUserId(), ip, "user_login", "用户登录成功");
 
         return userLoginVO;
     }
@@ -116,11 +118,11 @@ public class UserServiceImpl implements UserService {
      * 获取用户列表
      * @param page
      * @param size
-     * @param ip
      * @return
      */
     @Override
-    public PageInfo<UserVO> getUser(int page, int size, String ip) {
+    public PageInfo<UserVO> getUser(int page, int size) {
+        String ip = UserContext.getIp();
         Long userId = UserContext.getUser();
         String roleCode = UserContext.getRole();
 
@@ -131,33 +133,14 @@ public class UserServiceImpl implements UserService {
         }
 
         try (Page<?> ignored = PageHelper.startPage(page, size)) {
-            List<User> users;
 
-            switch (roleCode) {
-                case "user":
-                    User user1 = userMapper.getUserById(userId);
-                    users = List.of(user1);
-                    break;
-                case "admin":
-                    List<Long> userIds = (List<Long>) permissionClient.getUserIdsByRoleCode(2).getData();
+            List<User> users = RoleAccessHelper.getAccessibleUsers(roleCode, userId, userMapper, permissionClient);
 
-                    if (userIds == null || userIds.isEmpty()) {
-                        users = List.of();
-                    } else {
-                        users = userMapper.getUsersByUserIds(userIds);
-                    }
-                    break;
-                case "super_admin":
-                    users = userMapper.getAllUser();
-                    break;
-                default:
-                    users = List.of();
-            }
             List<UserVO> userVOList = users.stream()
                     .map(u -> BeanUtil.copyProperties(user, UserVO.class))
                     .toList();
             // 发送消息到 RabbitMQ
-            constructAndSendMessage(user, ip, "user_check", "查询用户信息");
+            constructAndSendMessage(userId, ip, "user_check", "查询用户信息");
 
             return new PageInfo<>(userVOList);
         }
@@ -166,27 +149,17 @@ public class UserServiceImpl implements UserService {
     /**
      * 获取用户信息
      * @param userId
-     * @param ip
      * @return
      */
     @Override
-    public UserVO getUserById(Long userId, String ip) {
+    public UserVO getUserById(Long userId) {
+
         // 当前用户上下文信息
+        String ip = UserContext.getIp();
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
 
-        if ("user".equals(role)) {
-            if (!Objects.equals(currentUserId, userId)) {
-                throw new AccessDeniedException("普通用户无权限访问其他用户信息");
-            }
-        } else if ("admin".equals(role)) {
-            String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
-            if ("super_admin".equals(targetRole)) {
-                throw new AccessDeniedException("管理员无权限访问超管信息");
-            }
-        } else if (!"super_admin".equals(role)) {
-            throw new AccessDeniedException("未知角色，拒绝访问");
-        }
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
 
         // 查询目标用户信息（只在通过权限校验后）
         User targetUser = userMapper.getUserById(userId);
@@ -196,7 +169,7 @@ public class UserServiceImpl implements UserService {
         }
 
         // 日志记录只需要当前用户ID和IP，无需当前用户对象
-        constructAndSendMessage(targetUser, ip, "user_check", "查询用户 " + userId + " 信息");
+        constructAndSendMessage(currentUserId, ip, "user_check", "查询用户 " + userId + " 信息");
 
         return userVO;
     }
@@ -205,48 +178,82 @@ public class UserServiceImpl implements UserService {
      * 更新用户信息
      * @param userId
      * @param userDTO
-     * @param ip
      * @return
      */
     @Override
-    public UserVO updateUser(Long userId, UserDTO userDTO, String ip) {
-        return null;
+    public UserVO updateUser(Long userId, UserDTO userDTO) {
+        //TODO 还需要做权限升降的判断
+        String ip = UserContext.getIp();
+        Long currentUserId = UserContext.getUser();
+        String role = UserContext.getRole();
+        User targetUser = userMapper.getUserById(userId);
+
+        if (targetUser == null){
+            throw new NullUserException("目标用户不存在");
+        }
+
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
+        User user = new User();
+        user.setUsername(userDTO.getUsername());
+        user.setEmail(userDTO.getEmail());
+        user.setPhone(userDTO.getPhone());
+
+        userMapper.updateUser(userId, user);
+        UserVO userVO = BeanUtil.copyProperties(user, UserVO.class);
+        userVO.setUserId(userId);
+        userVO.setGmtCreate(targetUser.getGmtCreate());
+
+        constructAndSendMessage(currentUserId, ip, "user_update", "更新用户信息");
+        return userVO;
     }
 
     /**
      * 重置密码
      * @param userId
      * @param password
-     * @param ip
      */
     @Override
-    public void resetPassword(Long userId, String password, String ip) {
+    public void resetPassword(Long userId, String password) {
+        String ip = UserContext.getIp();
+        Long currentUserId = UserContext.getUser();
+        String role = UserContext.getRole();
+        User targetUser = userMapper.getUserById(userId);
 
+        if (targetUser == null){
+            throw new NullUserException("目标用户不存在");
+        }
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
+
+        String encryptedPassword = passwordEncoder.encode(password);
+        User user = new User();
+        user.setPassword(encryptedPassword);
+        userMapper.updateUser(userId, user);
+
+        constructAndSendMessage(currentUserId, ip, "user_reset_password", "重置用户密码");
     }
 
     /**
      * 构造消息
-     * @param user
+     * @param userId
      * @param ip
      * @param action
      * @param message
      * @return
      */
-    private void constructAndSendMessage(User user, String ip, String action, String message){
+    private void constructAndSendMessage(Long userId, String ip, String action, String message){
         OperationLogDTO logDTO = new OperationLogDTO();
-        logDTO.setUserId(user.getUserId());
+        logDTO.setUserId(userId);
         logDTO.setAction(action);
         logDTO.setIp(ip);
+        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
         Map<String, Object> detail = new HashMap<>();
-        detail.put("username", user.getUsername());
-
-        String detailJson = LogDetailUtils.buildDetailJson(message, detail);
-        logDTO.setDetail(detailJson);
+        detail.put("message",message);
+        logDTO.setDetail(detail);
 
         try {
             rabbitTemplate.convertAndSend(
-                    RabbitMQConfig.EXCHANGE,
-                    RabbitMQConfig.ROUTING_KEY,
+                    EXCHANGE,
+                    USER_ROUTING_KEY,
                     logDTO
             );
         } catch (AmqpException e) {

@@ -1,6 +1,4 @@
-package com.xhx.userservice.entiey.dto;
-
-import lombok.Data;
+package com.xhx.userservice.entity.dto;
 
 public class UserDTO {
     private String username;

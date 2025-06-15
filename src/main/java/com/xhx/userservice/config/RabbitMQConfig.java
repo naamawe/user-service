@@ -10,14 +10,13 @@ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import static constant.mqConstant.*;
+
 /**
  * @author master
  */
 @Configuration
 public class RabbitMQConfig {
-    public static final String EXCHANGE = "log.direct.exchange";
-    public static final String QUEUE = "log.user.queue";
-    public static final String ROUTING_KEY = "log.user.register";
 
     @Bean
     public DirectExchange logExchange() {
@@ -26,7 +25,7 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue logQueue() {
-        return new Queue(QUEUE, true);
+        return new Queue(USER_QUEUE, true);
     }
 
     @Bean
@@ -34,7 +33,7 @@ public class RabbitMQConfig {
         return BindingBuilder
                 .bind(logQueue())
                 .to(logExchange())
-                .with(ROUTING_KEY);
+                .with(USER_ROUTING_KEY);
     }
 
     @Bean

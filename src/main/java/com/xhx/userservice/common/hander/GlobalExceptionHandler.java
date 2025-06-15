@@ -1,7 +1,8 @@
 package com.xhx.userservice.common.hander;
 
 import com.xhx.userservice.common.exception.*;
-import entiey.pojo.Result;
+import entity.pojo.Result;
+import exception.MessageException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 

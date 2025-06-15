@@ -1,23 +1,25 @@
-package com.xhx.userservice.entiey.vo;
+package com.xhx.userservice.entity.pojo;
 
 import java.sql.Timestamp;
 
 /**
  * @author master
  */
-public class UserVO {
+public class User {
     private Long userId;
     private String username;
+    private String password;
     private String email;
     private String phone;
     private Timestamp gmtCreate;
 
-    public UserVO() {
+    public User() {
     }
 
-    public UserVO(Long userId, String username, String email, String phone, Timestamp gmtCreate) {
+    public User(Long userId, String username, String password, String email, String phone, Timestamp gmtCreate) {
         this.userId = userId;
         this.username = username;
+        this.password = password;
         this.email = email;
         this.phone = phone;
         this.gmtCreate = gmtCreate;
@@ -53,6 +55,22 @@ public class UserVO {
      */
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    /**
+     * 获取
+     * @return password
+     */
+    public String getPassword() {
+        return password;
+    }
+
+    /**
+     * 设置
+     * @param password
+     */
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     /**
@@ -105,6 +123,6 @@ public class UserVO {
 
     @Override
     public String toString() {
-        return "UserVO{userId = " + userId + ", username = " + username + ", email = " + email + ", phone = " + phone + ", gmtCreate = " + gmtCreate + "}";
+        return "User{userId = " + userId + ", username = " + username + ", password = " + password + ", email = " + email + ", phone = " + phone + ", gmtCreate = " + gmtCreate + "}";
     }
 }

@@ -1,6 +1,6 @@
 package com.xhx.userservice.client;
 
-import entiey.pojo.Result;
+import entity.pojo.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

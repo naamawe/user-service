@@ -1,4 +1,4 @@
-package com.xhx.userservice.entiey.dto;
+package com.xhx.userservice.entity.dto;
 
 public class LoginDTO {
     private String username;

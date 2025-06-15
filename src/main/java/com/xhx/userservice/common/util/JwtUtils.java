@@ -30,11 +30,12 @@ public class JwtUtils {
      * @param ttl
      * @return
      */
-    public String createToken(Long userId, String role, Duration ttl) {
+    public String createToken(Long userId, String role, String ip, Duration ttl) {
         // 1.生成jws
         return JWT.create()
                 .setPayload("user", userId)
                 .setPayload("role", role)
+                .setPayload("ip", ip)
                 .setExpiresAt(new Date(System.currentTimeMillis() + ttl.toMillis()))
                 .setSigner(jwtSigner)
                 .sign();

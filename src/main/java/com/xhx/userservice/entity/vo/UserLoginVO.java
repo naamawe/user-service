@@ -1,4 +1,4 @@
-package com.xhx.userservice.entiey.vo;
+package com.xhx.userservice.entity.vo;
 
 /**
  * @author master
