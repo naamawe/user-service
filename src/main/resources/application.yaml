@@ -55,6 +55,8 @@ spring:
     username: root
     password: 123321
     virtual-host: /
+  aop:
+    proxy-target-class: false
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   type-aliases-package: com.xhx.userservice.entiey.pojo
@@ -79,6 +81,7 @@ seata:
   service:
     vgroup-mapping: # 事务组与tc集群的映射关系
       my_tx_group: "default"
+  enable-auto-data-source-proxy: false
 system:
   jwt:
     location: classpath:JWT.jks

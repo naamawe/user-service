@@ -1,9 +1,8 @@
 package com.xhx.userservice.client;
 
-import com.xhx.userservice.entiey.pojo.Result;
+import entiey.pojo.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.Mapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -38,4 +37,9 @@ public interface PermissionClient {
     @PostMapping("/permission/downgradeToUser")
     Result downgradeToUser(@RequestParam("userId") Long userId);
 
+    /**
+     * 根据用户等级查询用户信息
+     */
+    @GetMapping("/permission/getUserIdsByRoleCode")
+    Result getUserIdsByRoleCode(@RequestParam Integer roleCode);
 }

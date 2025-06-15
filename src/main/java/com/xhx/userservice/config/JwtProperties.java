@@ -93,6 +93,7 @@ public class JwtProperties {
         this.tokenTTL = tokenTTL;
     }
 
+    @Override
     public String toString() {
         return "JwtProperties{location = " + location + ", password = " + password + ", alias = " + alias + ", tokenTTL = " + tokenTTL + "}";
     }

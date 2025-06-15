@@ -33,5 +33,24 @@
         where username = #{username}
     </select>
 
+    <select id="getUserById" resultType="com.xhx.userservice.entiey.pojo.User">
+        select user_id, username, password, email, phone, gmt_create
+        from users
+        where user_id = #{userId}
+    </select>
+
+    <select id="getAllUser" resultType="com.xhx.userservice.entiey.pojo.User">
+        select user_id, username, password, email, phone, gmt_create
+        from users
+    </select>
+
+    <select id="getUsersByUserIds" resultType="com.xhx.userservice.entiey.pojo.User" parameterType="java.util.List">
+        SELECT user_id, username, password, email, phone, gmt_create
+        FROM users
+        WHERE user_id IN
+        <foreach collection="list" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 
 </mapper>

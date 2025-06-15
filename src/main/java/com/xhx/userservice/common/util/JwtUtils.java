@@ -6,7 +6,7 @@ import cn.hutool.jwt.JWTValidator;
 import cn.hutool.jwt.signers.JWTSigner;
 import cn.hutool.jwt.signers.JWTSignerUtil;
 
-import com.xhx.userservice.common.exception.UnauthorizedException;
+import exception.UnauthorizedException;
 import org.springframework.stereotype.Component;
 
 import java.security.KeyPair;
@@ -30,10 +30,11 @@ public class JwtUtils {
      * @param ttl
      * @return
      */
-    public String createToken(Long userId, Duration ttl) {
+    public String createToken(Long userId, String role, Duration ttl) {
         // 1.生成jws
         return JWT.create()
                 .setPayload("user", userId)
+                .setPayload("role", role)
                 .setExpiresAt(new Date(System.currentTimeMillis() + ttl.toMillis()))
                 .setSigner(jwtSigner)
                 .sign();
