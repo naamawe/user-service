@@ -4,7 +4,9 @@ import com.github.pagehelper.PageInfo;
 import com.xhx.userservice.common.util.IpUtils;
 import com.xhx.userservice.entity.dto.LoginDTO;
 import com.xhx.userservice.entity.dto.UserDTO;
+import com.xhx.userservice.entity.dto.UserUpdateDTO;
 import com.xhx.userservice.entity.vo.UserLoginVO;
+import com.xhx.userservice.entity.vo.UserUpdateVO;
 import com.xhx.userservice.entity.vo.UserVO;
 import com.xhx.userservice.service.UserService;
 import javax.annotation.Resource;
@@ -74,8 +76,8 @@ public class UserController {
      * @return
      */
     @PutMapping("/{userId}")
-    public Result updateUser(@PathVariable Long userId, UserDTO userDTO) {
-        UserVO user = userService.updateUser(userId, userDTO);
+    public Result updateUser(@PathVariable Long userId, UserUpdateDTO userUpdateDTO) {
+        UserUpdateVO user = userService.updateUser(userId, userUpdateDTO);
         return Result.ok(user);
     }
 

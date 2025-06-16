@@ -3,20 +3,20 @@ package com.xhx.userservice.entity.dto;
 /**
  * @author master
  */
-public class UserDTO {
+public class UserUpdateDTO {
     private String username;
-    private String password;
     private String email;
     private String phone;
+    private String role;
 
-    public UserDTO() {
+    public UserUpdateDTO() {
     }
 
-    public UserDTO(String username, String password, String email, String phone) {
+    public UserUpdateDTO(String username, String email, String phone, String role) {
         this.username = username;
-        this.password = password;
         this.email = email;
         this.phone = phone;
+        this.role = role;
     }
 
     /**
@@ -33,22 +33,6 @@ public class UserDTO {
      */
     public void setUsername(String username) {
         this.username = username;
-    }
-
-    /**
-     * 获取
-     * @return password
-     */
-    public String getPassword() {
-        return password;
-    }
-
-    /**
-     * 设置
-     * @param password
-     */
-    public void setPassword(String password) {
-        this.password = password;
     }
 
     /**
@@ -83,8 +67,24 @@ public class UserDTO {
         this.phone = phone;
     }
 
+    /**
+     * 获取
+     * @return role
+     */
+    public String getRole() {
+        return role;
+    }
+
+    /**
+     * 设置
+     * @param role
+     */
+    public void setRole(String role) {
+        this.role = role;
+    }
+
     @Override
     public String toString() {
-        return "UserDTO{username = " + username + ", password = " + password + ", email = " + email + ", phone = " + phone + "}";
+        return "UserUpdateDTO{username = " + username + ", email = " + email + ", phone = " + phone + ", role = " + role + "}";
     }
 }

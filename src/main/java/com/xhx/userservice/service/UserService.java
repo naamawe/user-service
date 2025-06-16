@@ -3,7 +3,9 @@ package com.xhx.userservice.service;
 import com.github.pagehelper.PageInfo;
 import com.xhx.userservice.entity.dto.LoginDTO;
 import com.xhx.userservice.entity.dto.UserDTO;
+import com.xhx.userservice.entity.dto.UserUpdateDTO;
 import com.xhx.userservice.entity.vo.UserLoginVO;
+import com.xhx.userservice.entity.vo.UserUpdateVO;
 import com.xhx.userservice.entity.vo.UserVO;
 
 
@@ -40,7 +42,7 @@ public interface UserService {
      * @param userId
      * @return
      */
-    UserVO updateUser(Long userId, UserDTO userDTO);
+    UserUpdateVO updateUser(Long userId, UserUpdateDTO userUpdateDTO);
 
     /**
      * 重置密码

@@ -13,18 +13,17 @@ import java.util.Objects;
  * @author ChatGPT
  */
 public class RoleAccessHelper {
-    
-    public static void checkPermission(String currentRole, Long currentUserId, Long targetUserId, PermissionClient permissionClient) {
+
+    public static void checkPermission(String currentRole, Long currentUserId, Long targetUserId, String targetRole) {
         switch (currentRole){
             case "user":
                 if (!Objects.equals(currentUserId, targetUserId)){
-                    throw new AccessDeniedException("普通用户无权限修改其他用户密码");
+                    throw new AccessDeniedException("普通用户无权限操作其他用户");
                 }
                 break;
             case "admin":
-                String targetRole = (String) permissionClient.getUserRoleCode(targetUserId).getData();
                 if ("super_admin".equals(targetRole)){
-                    throw new AccessDeniedException("管理员无权限修改超管密码");
+                    throw new AccessDeniedException("管理员无权限操作超管");
                 }
                 break;
             case "super_admin":

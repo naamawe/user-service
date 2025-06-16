@@ -12,13 +12,16 @@ import com.xhx.userservice.common.util.SnowflakeIdWorker;
 import com.xhx.userservice.config.JwtProperties;
 import com.xhx.userservice.entity.dto.LoginDTO;
 import com.xhx.userservice.entity.dto.UserDTO;
+import com.xhx.userservice.entity.dto.UserUpdateDTO;
 import com.xhx.userservice.entity.pojo.User;
 import com.xhx.userservice.entity.vo.UserLoginVO;
+import com.xhx.userservice.entity.vo.UserUpdateVO;
 import com.xhx.userservice.entity.vo.UserVO;
 import com.xhx.userservice.mapper.UserMapper;
 import com.xhx.userservice.service.UserService;
 
 import entity.dto.OperationLogDTO;
+import entity.pojo.Result;
 import exception.MessageException;
 import io.seata.spring.annotation.GlobalTransactional;
 import javax.annotation.Resource;
@@ -159,7 +162,8 @@ public class UserServiceImpl implements UserService {
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
 
-        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
+        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
         // 查询目标用户信息（只在通过权限校验后）
         User targetUser = userMapper.getUserById(userId);
@@ -177,34 +181,61 @@ public class UserServiceImpl implements UserService {
     /**
      * 更新用户信息
      * @param userId
-     * @param userDTO
+     * @param userUpdateDTO
      * @return
      */
     @Override
-    public UserVO updateUser(Long userId, UserDTO userDTO) {
-        //TODO 还需要做权限升降的判断
+    public UserUpdateVO updateUser(Long userId, UserUpdateDTO userUpdateDTO) {
         String ip = UserContext.getIp();
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
-        User targetUser = userMapper.getUserById(userId);
 
+        User targetUser = userMapper.getUserById(userId);
         if (targetUser == null){
             throw new NullUserException("目标用户不存在");
         }
+        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
-        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
-        User user = new User();
-        user.setUsername(userDTO.getUsername());
-        user.setEmail(userDTO.getEmail());
-        user.setPhone(userDTO.getPhone());
+        String requestedRole = userUpdateDTO.getRole();
+        if (requestedRole != null && !requestedRole.equals(targetRole)) {
+            if ("admin".equals(requestedRole)) {
+                permissionClient.upgradeToAdmin(userId);
+            } else if ("user".equals(requestedRole)) {
+                permissionClient.downgradeToUser(userId);
+            }
+        }
 
-        userMapper.updateUser(userId, user);
-        UserVO userVO = BeanUtil.copyProperties(user, UserVO.class);
-        userVO.setUserId(userId);
-        userVO.setGmtCreate(targetUser.getGmtCreate());
+        User updateUser = new User();
+        boolean needUpdate = false;
+
+        if (userUpdateDTO.getUsername() != null) {
+            updateUser.setUsername(userUpdateDTO.getUsername());
+            needUpdate = true;
+        }
+        if (userUpdateDTO.getEmail() != null) {
+            updateUser.setEmail(userUpdateDTO.getEmail());
+            needUpdate = true;
+        }
+        if (userUpdateDTO.getPhone() != null) {
+            updateUser.setPhone(userUpdateDTO.getPhone());
+            needUpdate = true;
+        }
+
+        if (needUpdate) {
+            userMapper.updateUser(userId, updateUser);
+        }
+
+        // 构建返回对象
+        UserUpdateVO vo = new UserUpdateVO();
+        vo.setUserId(userId);
+        vo.setUsername(updateUser.getUsername() != null ? updateUser.getUsername() : targetUser.getUsername());
+        vo.setEmail(updateUser.getEmail() != null ? updateUser.getEmail() : targetUser.getEmail());
+        vo.setPhone(updateUser.getPhone() != null ? updateUser.getPhone() : targetUser.getPhone());
+        vo.setGmtCreate(targetUser.getGmtCreate());
 
         constructAndSendMessage(currentUserId, ip, "user_update", "更新用户信息");
-        return userVO;
+        return vo;
     }
 
     /**
@@ -214,7 +245,6 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public void resetPassword(Long userId, String password) {
-        String ip = UserContext.getIp();
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
         User targetUser = userMapper.getUserById(userId);
@@ -222,14 +252,15 @@ public class UserServiceImpl implements UserService {
         if (targetUser == null){
             throw new NullUserException("目标用户不存在");
         }
-        RoleAccessHelper.checkPermission(role, currentUserId, userId, permissionClient);
+        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+        RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
         String encryptedPassword = passwordEncoder.encode(password);
         User user = new User();
         user.setPassword(encryptedPassword);
         userMapper.updateUser(userId, user);
 
-        constructAndSendMessage(currentUserId, ip, "user_reset_password", "重置用户密码");
+        constructAndSendMessage(currentUserId, UserContext.getIp(), "user_reset_password", "重置用户密码");
     }
 
     /**
@@ -260,4 +291,5 @@ public class UserServiceImpl implements UserService {
             throw new MessageException("操作日志发送失败");
         }
     }
+
 }
