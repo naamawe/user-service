@@ -1,0 +1,5 @@
+singleServerConfig:
+  address: "redis://192.168.150.129:6379"
+  password: "050126"
+  connectionPoolSize: 64
+  connectionMinimumIdleSize: 10

@@ -21,20 +21,28 @@ import com.xhx.userservice.mapper.UserMapper;
 import com.xhx.userservice.service.UserService;
 
 import entity.dto.OperationLogDTO;
-import entity.pojo.Result;
 import exception.MessageException;
 import io.seata.spring.annotation.GlobalTransactional;
 import javax.annotation.Resource;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import uitls.UserContext;
 
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
+import static com.xhx.userservice.common.constant.MessageConstant.*;
+import static com.xhx.userservice.common.constant.UserConstant.*;
+import static com.xhx.userservice.common.constant.RedisConstant.*;
 import static constant.mqConstant.*;
 
 /**
@@ -57,6 +65,15 @@ public class UserServiceImpl implements UserService {
     private JwtUtils jwtUtils;
     @Resource
     private JwtProperties jwtProperties;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedisTemplate<String, User> userRedisTemplate;
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+    @Resource
+    private RedissonClient redissonClient;
+
 
     /**
      * 用户注册
@@ -64,7 +81,7 @@ public class UserServiceImpl implements UserService {
      * @param ip
      */
     @Override
-    @GlobalTransactional(name = "user-service-tx-group",  rollbackFor = Exception.class)
+    @GlobalTransactional(name = USER_SERVICE_GROUP,  rollbackFor = Exception.class)
     public void register(UserDTO userDTO, String ip) {
 
         User user = BeanUtil.copyProperties(userDTO, User.class);
@@ -80,11 +97,12 @@ public class UserServiceImpl implements UserService {
         try {
             permissionClient.bindDefaultRole(user.getUserId());
         } catch (Exception e) {
-            throw new BindingException("绑定角色失败");
+            throw new BindingException(BIND_ERROR);
         }
 
         // 发送消息到 RabbitMQ
-        constructAndSendMessage(userId, ip, "user_register", "用户注册成功");
+        constructAndSendMessage(userId, ip, USER_REGISTER, USER_REGISTER_SUCCESS);
+        throw new RuntimeException();
     }
 
     /**
@@ -95,27 +113,35 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserLoginVO login(LoginDTO loginDTO, String ip) {
-        User user = userMapper.findByUsername(loginDTO.getUsername());
+        Long userId = loginDTO.getUserId();
 
-        if (user == null){
-            throw new NullUserException("用户不存在");
+        String redisKey = USER_LOGIN_KEY + userId;
+        User user = userRedisTemplate.opsForValue().get(redisKey);
+
+        if (user != null && NULL.equals(user.getUsername())) {
+            throw new NullUserException(USER_NOT_EXIST);
         }
-        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())){
-            throw new PasswordErrorException("密码错误");
+
+        if (user == null) {
+            user = getUserWithLock(redisKey, userId);
         }
-        String role = (String) permissionClient.getUserRoleCode(user.getUserId()).getData();
+
+        if (!passwordEncoder.matches(loginDTO.getPassword(), user.getPassword())) {
+            throw new PasswordErrorException(PASSWORD_ERROR);
+        }
+
+        String role = getRoleFromCacheOrRPC(user.getUserId());
         String token = jwtUtils.createToken(user.getUserId(), role, ip, jwtProperties.getTokenTTL());
 
-        UserLoginVO userLoginVO = new UserLoginVO();
-        userLoginVO.setUserId(user.getUserId());
-        userLoginVO.setUsername(user.getUsername());
-        userLoginVO.setToken(token);
+        UserLoginVO vo = new UserLoginVO();
+        vo.setUserId(user.getUserId());
+        vo.setUsername(user.getUsername());
+        vo.setToken(token);
 
-        // 发送消息到 RabbitMQ
-        constructAndSendMessage(user.getUserId(), ip, "user_login", "用户登录成功");
-
-        return userLoginVO;
+        constructAndSendMessage(user.getUserId(), ip, USER_LOGIN, USER_LOGIN_SUCCESS);
+        return vo;
     }
+
 
     /**
      * 获取用户列表
@@ -129,21 +155,15 @@ public class UserServiceImpl implements UserService {
         Long userId = UserContext.getUser();
         String roleCode = UserContext.getRole();
 
-        User user = userMapper.getUserById(userId);
-
-        if (user == null) {
-            throw new NullUserException("用户不存在");
-        }
-
         try (Page<?> ignored = PageHelper.startPage(page, size)) {
 
-            List<User> users = RoleAccessHelper.getAccessibleUsers(roleCode, userId, userMapper, permissionClient);
+            List<User> users = RoleAccessHelper.getAccessibleUsers(roleCode, userId, userMapper, permissionClient, redisTemplate, redissonClient);
 
             List<UserVO> userVOList = users.stream()
-                    .map(u -> BeanUtil.copyProperties(user, UserVO.class))
+                    .map(u -> BeanUtil.copyProperties(u, UserVO.class))
                     .toList();
             // 发送消息到 RabbitMQ
-            constructAndSendMessage(userId, ip, "user_check", "查询用户信息");
+            constructAndSendMessage(userId, ip, USER_CHECK, USER_CHECK_SUCCESS);
 
             return new PageInfo<>(userVOList);
         }
@@ -162,18 +182,21 @@ public class UserServiceImpl implements UserService {
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
 
-        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+        String redisKey = USER_LOGIN_KEY + userId;
+        String targetRole = getRoleFromCacheOrRPC(userId);
         RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
         // 查询目标用户信息（只在通过权限校验后）
-        User targetUser = userMapper.getUserById(userId);
-        UserVO userVO = BeanUtil.copyProperties(targetUser, UserVO.class);
+        User targetUser = userRedisTemplate.opsForValue().get(redisKey);
+
         if (targetUser == null) {
-            throw new NullUserException("目标用户不存在");
+            targetUser = getUserWithLock(redisKey, userId);
+        } else if (NULL.equals(targetUser.getUsername())) {
+            throw new NullUserException(USER_NOT_EXIST);
         }
 
-        // 日志记录只需要当前用户ID和IP，无需当前用户对象
-        constructAndSendMessage(currentUserId, ip, "user_check", "查询用户 " + userId + " 信息");
+        UserVO userVO = BeanUtil.copyProperties(targetUser, UserVO.class);
+        constructAndSendMessage(currentUserId, ip, USER_CHECK, USER_CHECK_SUCCESS + userId);
 
         return userVO;
     }
@@ -190,18 +213,23 @@ public class UserServiceImpl implements UserService {
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
 
-        User targetUser = userMapper.getUserById(userId);
-        if (targetUser == null){
-            throw new NullUserException("目标用户不存在");
+        String redisKey = USER_LOGIN_KEY + userId;
+        User targetUser = userRedisTemplate.opsForValue().get(redisKey);
+
+        if (targetUser == null) {
+            targetUser = getUserWithLock(redisKey, userId);
+        } else if (NULL.equals(targetUser.getUsername())) {
+            throw new NullUserException(USER_NOT_EXIST);
         }
-        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+
+        String targetRole = getRoleFromCacheOrRPC(userId);
         RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
         String requestedRole = userUpdateDTO.getRole();
         if (requestedRole != null && !requestedRole.equals(targetRole)) {
-            if ("admin".equals(requestedRole)) {
+            if (USER_ROLE_ADMIN.equals(requestedRole)) {
                 permissionClient.upgradeToAdmin(userId);
-            } else if ("user".equals(requestedRole)) {
+            } else if (USER_ROLE_USER.equals(requestedRole)) {
                 permissionClient.downgradeToUser(userId);
             }
         }
@@ -224,6 +252,17 @@ public class UserServiceImpl implements UserService {
 
         if (needUpdate) {
             userMapper.updateUser(userId, updateUser);
+
+            redisTemplate.delete(redisKey);
+
+            CompletableFuture.runAsync(() -> {
+                try {
+                    Thread.sleep(200);
+                    redisTemplate.delete(redisKey);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
         }
 
         // 构建返回对象
@@ -234,7 +273,7 @@ public class UserServiceImpl implements UserService {
         vo.setPhone(updateUser.getPhone() != null ? updateUser.getPhone() : targetUser.getPhone());
         vo.setGmtCreate(targetUser.getGmtCreate());
 
-        constructAndSendMessage(currentUserId, ip, "user_update", "更新用户信息");
+        constructAndSendMessage(currentUserId, ip, USER_UPDATE, USER_UPDATE_SUCCESS);
         return vo;
     }
 
@@ -247,12 +286,17 @@ public class UserServiceImpl implements UserService {
     public void resetPassword(Long userId, String password) {
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
-        User targetUser = userMapper.getUserById(userId);
 
-        if (targetUser == null){
-            throw new NullUserException("目标用户不存在");
+        String redisKey = USER_LOGIN_KEY + userId;
+        User targetUser = userRedisTemplate.opsForValue().get(redisKey);
+
+        if (targetUser == null) {
+            targetUser = getUserWithLock(redisKey, userId);
+        } else if (NULL.equals(targetUser.getUsername())) {
+            throw new NullUserException(USER_NOT_EXIST);
         }
-        String targetRole = (String) permissionClient.getUserRoleCode(userId).getData();
+
+        String targetRole = getRoleFromCacheOrRPC(userId);
         RoleAccessHelper.checkPermission(role, currentUserId, userId, targetRole);
 
         String encryptedPassword = passwordEncoder.encode(password);
@@ -260,7 +304,18 @@ public class UserServiceImpl implements UserService {
         user.setPassword(encryptedPassword);
         userMapper.updateUser(userId, user);
 
-        constructAndSendMessage(currentUserId, UserContext.getIp(), "user_reset_password", "重置用户密码");
+        redisTemplate.delete(redisKey);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(200);
+                redisTemplate.delete(redisKey);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        constructAndSendMessage(currentUserId, UserContext.getIp(), USER_RESET_PASSWORD, USER_RESET_PASSWORD_SUCCESS);
     }
 
     /**
@@ -278,7 +333,7 @@ public class UserServiceImpl implements UserService {
         logDTO.setIp(ip);
         logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
         Map<String, Object> detail = new HashMap<>();
-        detail.put("message",message);
+        detail.put(MESSAGE,message);
         logDTO.setDetail(detail);
 
         try {
@@ -288,8 +343,108 @@ public class UserServiceImpl implements UserService {
                     logDTO
             );
         } catch (AmqpException e) {
-            throw new MessageException("操作日志发送失败");
+            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
         }
+    }
+
+    private User getUserWithLock(String redisKey, Long userId) {
+        RLock lock = redissonClient.getLock(LOCK_USER + userId);
+        boolean locked = false;
+
+        try {
+            locked = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            if (!locked) {
+                Thread.sleep(THREAD_SLEEP_TIME_MILLIS);
+                return getUserWithLock(redisKey, userId);
+            }
+
+            // 再查一次缓存，防止击穿
+            User user = userRedisTemplate.opsForValue().get(redisKey);
+            if (user != null) {
+                if (NULL.equals(user.getUsername())) {
+                    throw new NullUserException(USER_NOT_EXIST);
+                }
+                return user;
+            }
+
+            user = userMapper.getUserById(userId);
+            if (user == null) {
+                User emptyUser = new User();
+                emptyUser.setUsername(NULL);
+                userRedisTemplate.opsForValue().set(redisKey, emptyUser, CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES);
+                throw new NullUserException(USER_NOT_EXIST);
+            }
+
+            int ttl = TTL_BASE_SECONDS + new Random().nextInt(TTL_RANDOM_BOUND_SECONDS);
+            userRedisTemplate.opsForValue().set(redisKey, user, ttl, TimeUnit.MINUTES);
+            return user;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(THREAD_INTERRUPTED);
+        } finally {
+            if (locked && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
+
+    private String getRoleFromCacheOrRPC(Long userId) {
+        String cacheKey = USER_ROLE_KEY + userId;
+
+        // 先查缓存
+        String role = stringRedisTemplate.opsForValue().get(cacheKey);
+        if (role != null) {
+            // 命中缓存
+            if (NULL.equals(role)) {
+                // 缓存的是空角色
+                throw new NullUserException(USER_ROLE_NOT_EXIST);
+            }
+            return role;
+        }
+
+        // 缓存未命中，尝试加锁防止击穿
+        RLock lock = redissonClient.getLock(LOCK_USER_ROLE + userId);
+        boolean locked = false;
+        try {
+            locked = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            if (locked) {
+                // 再次检查缓存，防止缓存击穿
+                role = stringRedisTemplate.opsForValue().get(cacheKey);
+                if (role != null) {
+                    if (NULL.equals(role)) {
+                        throw new NullUserException(USER_ROLE_NOT_EXIST);
+                    }
+                    return role;
+                }
+
+                // 调用权限服务获取角色
+                role = (String) permissionClient.getUserRoleCode(userId).getData();
+
+                if (role == null) {
+                    // 防止缓存穿透，缓存空角色
+                    stringRedisTemplate.opsForValue().set(cacheKey, NULL, USER_ROLE_NULL_TTL_MINUTES, TimeUnit.MINUTES);
+                    throw new NullUserException(USER_ROLE_NOT_EXIST);
+                }
+
+                // 缓存角色，防止雪崩加随机 TTL
+                int ttl = USER_ROLE_TTL_BASE_SECONDS + new Random().nextInt(USER_ROLE_TTL_RANDOM_SECONDS);
+                stringRedisTemplate.opsForValue().set(cacheKey, role, ttl, TimeUnit.MINUTES);
+            } else {
+                // 没抢到锁，稍等后重试
+                Thread.sleep(THREAD_SLEEP_TIME_MILLIS);
+                return getRoleFromCacheOrRPC(userId);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(THREAD_INTERRUPTED);
+        } finally {
+            if (locked && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+
+        return role;
     }
 
 }

@@ -2,6 +2,9 @@ spring:
   application:
     name: user-service
   shardingsphere:
+    transaction:
+      enabled: true
+      type: SEATA
     datasource:
       names: ds0, ds1
       ds0:
@@ -55,6 +58,17 @@ spring:
     username: root
     password: 123321
     virtual-host: /
+  redis:
+    host: 192.168.150.129
+    port: 6379
+    timeout: 5000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1
+    password: '050126'
   aop:
     proxy-target-class: false
 mybatis:
@@ -68,6 +82,7 @@ logging:
   level:
     org.apache.shardingsphere: DEBUG
 seata:
+  application-id: user-service
   registry: # TC服务注册中心的配置，微服务根据这些信息去注册中心获取tc服务地址
     type: nacos # 注册中心类型 nacos
     nacos:
@@ -81,7 +96,7 @@ seata:
   service:
     vgroup-mapping: # 事务组与tc集群的映射关系
       my_tx_group: "default"
-  enable-auto-data-source-proxy: false
+  enable-auto-data-source-proxy: true
 system:
   jwt:
     location: classpath:JWT.jks

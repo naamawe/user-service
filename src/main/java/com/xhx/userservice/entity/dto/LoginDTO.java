@@ -1,15 +1,34 @@
 package com.xhx.userservice.entity.dto;
 
 public class LoginDTO {
+    private Long userId;
     private String username;
     private String password;
+
 
     public LoginDTO() {
     }
 
-    public LoginDTO(String username, String password) {
+    public LoginDTO(Long userId, String username, String password) {
+        this.userId = userId;
         this.username = username;
         this.password = password;
+    }
+
+    /**
+     * 获取
+     * @return userId
+     */
+    public Long getUserId() {
+        return userId;
+    }
+
+    /**
+     * 设置
+     * @param userId
+     */
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     /**
@@ -46,6 +65,6 @@ public class LoginDTO {
 
     @Override
     public String toString() {
-        return "LoginDTO{username = " + username + ", password = " + password + "}";
+        return "LoginDTO{userId = " + userId + ", username = " + username + ", password = " + password + "}";
     }
 }
