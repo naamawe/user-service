@@ -11,16 +11,19 @@ public class UserVO {
     private String email;
     private String phone;
     private Timestamp gmtCreate;
+    private String role;
+
 
     public UserVO() {
     }
 
-    public UserVO(Long userId, String username, String email, String phone, Timestamp gmtCreate) {
+    public UserVO(Long userId, String username, String email, String phone, Timestamp gmtCreate, String role) {
         this.userId = userId;
         this.username = username;
         this.email = email;
         this.phone = phone;
         this.gmtCreate = gmtCreate;
+        this.role = role;
     }
 
     /**
@@ -103,8 +106,24 @@ public class UserVO {
         this.gmtCreate = gmtCreate;
     }
 
+    /**
+     * 获取
+     * @return role
+     */
+    public String getRole() {
+        return role;
+    }
+
+    /**
+     * 设置
+     * @param role
+     */
+    public void setRole(String role) {
+        this.role = role;
+    }
+
     @Override
     public String toString() {
-        return "UserVO{userId = " + userId + ", username = " + username + ", email = " + email + ", phone = " + phone + ", gmtCreate = " + gmtCreate + "}";
+        return "UserVO{userId = " + userId + ", username = " + username + ", email = " + email + ", phone = " + phone + ", gmtCreate = " + gmtCreate + ", role = " + role + "}";
     }
 }

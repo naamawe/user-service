@@ -159,10 +159,15 @@ public class UserServiceImpl implements UserService {
 
             List<User> users = RoleAccessHelper.getAccessibleUsers(roleCode, userId, userMapper, permissionClient, redisTemplate, redissonClient);
 
-            List<UserVO> userVOList = users.stream()
-                    .map(u -> BeanUtil.copyProperties(u, UserVO.class))
-                    .toList();
-            // 发送消息到 RabbitMQ
+            List<UserVO> userVOList = users.stream().map(user -> {
+                UserVO userVO = BeanUtil.copyProperties(user, UserVO.class);
+
+                String role = getRoleFromCacheOrRPC(user.getUserId());
+                userVO.setRole(role);
+
+                return userVO;
+            }).toList();
+
             constructAndSendMessage(userId, ip, USER_CHECK, USER_CHECK_SUCCESS);
 
             return new PageInfo<>(userVOList);
@@ -196,6 +201,7 @@ public class UserServiceImpl implements UserService {
         }
 
         UserVO userVO = BeanUtil.copyProperties(targetUser, UserVO.class);
+        userVO.setRole(targetRole);
         constructAndSendMessage(currentUserId, ip, USER_CHECK, USER_CHECK_SUCCESS + userId);
 
         return userVO;
