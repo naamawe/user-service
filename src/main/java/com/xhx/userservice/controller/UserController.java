@@ -76,7 +76,7 @@ public class UserController {
      * @return
      */
     @PutMapping("/{userId}")
-    public Result updateUser(@PathVariable Long userId, UserUpdateDTO userUpdateDTO) {
+    public Result updateUser(@PathVariable Long userId, @RequestBody UserUpdateDTO userUpdateDTO) {
         UserUpdateVO user = userService.updateUser(userId, userUpdateDTO);
         return Result.ok(user);
     }

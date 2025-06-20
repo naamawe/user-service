@@ -243,16 +243,33 @@ public class UserServiceImpl implements UserService {
         User updateUser = new User();
         boolean needUpdate = false;
 
-        if (userUpdateDTO.getUsername() != null) {
+        List<Map<String, String>> changeLogs = new ArrayList<>();
+
+        if (userUpdateDTO.getUsername() != null && !userUpdateDTO.getUsername().equals(targetUser.getUsername())) {
             updateUser.setUsername(userUpdateDTO.getUsername());
+            changeLogs.add(Map.of(
+                    "field", "username",
+                    "old", targetUser.getUsername(),
+                    "new", userUpdateDTO.getUsername()
+            ));
             needUpdate = true;
         }
-        if (userUpdateDTO.getEmail() != null) {
+        if (userUpdateDTO.getEmail() != null && !userUpdateDTO.getEmail().equals(targetUser.getEmail())) {
             updateUser.setEmail(userUpdateDTO.getEmail());
+            changeLogs.add(Map.of(
+                    "field", "email",
+                    "old", String.valueOf(targetUser.getEmail()),
+                    "new", String.valueOf(userUpdateDTO.getEmail())
+            ));
             needUpdate = true;
         }
-        if (userUpdateDTO.getPhone() != null) {
+        if (userUpdateDTO.getPhone() != null && !userUpdateDTO.getPhone().equals(targetUser.getPhone())) {
             updateUser.setPhone(userUpdateDTO.getPhone());
+            changeLogs.add(Map.of(
+                    "field", "phone",
+                    "old", String.valueOf(targetUser.getPhone()),
+                    "new", String.valueOf(userUpdateDTO.getPhone())
+            ));
             needUpdate = true;
         }
 
@@ -260,7 +277,6 @@ public class UserServiceImpl implements UserService {
             userMapper.updateUser(userId, updateUser);
 
             redisTemplate.delete(redisKey);
-
             CompletableFuture.runAsync(() -> {
                 try {
                     Thread.sleep(200);
@@ -271,7 +287,6 @@ public class UserServiceImpl implements UserService {
             });
         }
 
-        // 构建返回对象
         UserUpdateVO vo = new UserUpdateVO();
         vo.setUserId(userId);
         vo.setUsername(updateUser.getUsername() != null ? updateUser.getUsername() : targetUser.getUsername());
@@ -279,7 +294,11 @@ public class UserServiceImpl implements UserService {
         vo.setPhone(updateUser.getPhone() != null ? updateUser.getPhone() : targetUser.getPhone());
         vo.setGmtCreate(targetUser.getGmtCreate());
 
-        constructAndSendMessage(currentUserId, ip, USER_UPDATE, USER_UPDATE_SUCCESS);
+        Map<String, Object> extraDetail = new HashMap<>();
+        extraDetail.put("changes", changeLogs);
+
+        constructAndSendMessage(currentUserId, ip, USER_UPDATE, USER_UPDATE_SUCCESS, extraDetail);
+
         return vo;
     }
 
@@ -352,6 +371,27 @@ public class UserServiceImpl implements UserService {
             throw new MessageException(OPERATION_LOG_SEND_FAILURE);
         }
     }
+    private void constructAndSendMessage(Long userId, String ip, String action, String message, Map<String, Object> extraDetail) {
+        OperationLogDTO logDTO = new OperationLogDTO();
+        logDTO.setUserId(userId);
+        logDTO.setAction(action);
+        logDTO.setIp(ip);
+        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put(MESSAGE, message);
+        if (extraDetail != null) {
+            detail.putAll(extraDetail);
+        }
+        logDTO.setDetail(detail);
+
+        try {
+            rabbitTemplate.convertAndSend(EXCHANGE, USER_ROUTING_KEY, logDTO);
+        } catch (AmqpException e) {
+            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
+        }
+    }
+
 
     private User getUserWithLock(String redisKey, Long userId) {
         RLock lock = redissonClient.getLock(LOCK_USER + userId);
