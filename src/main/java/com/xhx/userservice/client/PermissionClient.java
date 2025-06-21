@@ -1,5 +1,6 @@
 package com.xhx.userservice.client;
 
+import com.xhx.userservice.client.fallback.PermissionClientFallbackFactory;
 import entity.pojo.Result;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * @author master
  */
-@FeignClient(value = "permission-service")
+@FeignClient(value = "permission-service", fallbackFactory = PermissionClientFallbackFactory.class)
 public interface PermissionClient {
 
     /**

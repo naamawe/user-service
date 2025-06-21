@@ -23,24 +23,24 @@ spring:
           provider-type: Seata
         tables:
           users:
-            actual-data-nodes: ds0.users_0,ds0.users_1,ds1.users_0,ds1.users_1
+            actual-data-nodes: ds0.users_0,ds1.users_1
             table-strategy:
               standard:
                 sharding-column: user_id
-                sharding-algorithm-name: user-inline
+                sharding-algorithm-name: table-hash
             database-strategy:
               standard:
                 sharding-column: user_id
-                sharding-algorithm-name: database-inline
+                sharding-algorithm-name: database-hash
         sharding-algorithms:
-          user-inline:
-            type: INLINE
+          database-hash:
+            type: HASH_MOD
             props:
-              algorithm-expression: users_${user_id % 2}
-          database-inline:
-            type: INLINE
+              sharding-count: 2
+          table-hash:
+            type: HASH_MOD
             props:
-              algorithm-expression: ds${user_id % 2}
+              sharding-count: 2
     props:
       sql-show: true
       executor-size: 16
@@ -52,6 +52,12 @@ spring:
   cloud:
     nacos:
       server-addr: 192.168.150.129:8848
+    sentinel:
+      eager: true
+      transport:
+        dashboard: 192.168.150.129:8858
+        port: 8719
+      http-method-specify: true
   rabbitmq:
     host: 192.168.150.129
     port: 5672
@@ -106,3 +112,6 @@ system:
     alias: hmall
     password: hmall123
     tokenTTL: 30m
+feign:
+  sentinel:
+    enabled: true

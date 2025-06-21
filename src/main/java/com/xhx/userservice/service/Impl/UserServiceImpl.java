@@ -102,7 +102,6 @@ public class UserServiceImpl implements UserService {
 
         // 发送消息到 RabbitMQ
         constructAndSendMessage(userId, ip, USER_REGISTER, USER_REGISTER_SUCCESS);
-        throw new RuntimeException();
     }
 
     /**

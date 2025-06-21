@@ -13,5 +13,8 @@ public class MessageConstant {
     public static final String ADMIN_NO_PERMISSION = "管理员无权限操作超管";
     public static final String UNKNOWN_ROLE = "未知角色，拒绝访问";
     public static final String THREAD_INTERRUPTED = "线程被中断";
+    public static final String BIND_DEFAULT_ROLE_FAIL = "绑定默认角色失败，请稍后重试";
+    public static final String UPGRADE_TO_ADMIN_FAIL = "升级管理员失败，请稍后重试";
+    public static final String DOWNGRADE_TO_USER_FAIL = "降级用户失败，请稍后重试";
 }
 
