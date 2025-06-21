@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
  * @author master
  */
 @RestController
-@RequestMapping("/user")
 public class UserController {
 
     @Resource
@@ -28,9 +27,9 @@ public class UserController {
 
     /**
      * 用户注册
-     * @return
+     * @return 返回码
      */
-    @PostMapping("/register")
+    @PostMapping("/user/register")
     public Result register(@RequestBody UserDTO userDTO, HttpServletRequest request) {
         String ip = IpUtils.getClientIp(request);
         userService.register(userDTO, ip);
@@ -39,9 +38,9 @@ public class UserController {
 
     /**
      * 用户登录
-     * @return
+     * @return 返回码
      */
-    @PostMapping("/login")
+    @PostMapping("/user/login")
     public Result login(@RequestBody LoginDTO loginDTO, HttpServletRequest request) {
         String ip = IpUtils.getClientIp(request);
         UserLoginVO login = userService.login(loginDTO, ip);
@@ -50,9 +49,9 @@ public class UserController {
 
     /**
      * 分页用户列表
-     * @return
+     * @return 返回码
      */
-    @GetMapping
+    @GetMapping("/users")
     public Result getUser(@RequestParam(defaultValue = "1") int page,
                           @RequestParam(defaultValue = "10") int size) {
         PageInfo<UserVO> pageInfo = userService.getUser(page, size);
@@ -61,10 +60,10 @@ public class UserController {
 
     /**
      * 查询用户信息
-     * @param userid
-     * @return
+     * @param userid 用户id
+     * @return       返回码
      */
-    @GetMapping("/{userid}")
+    @GetMapping("/user/{userid}")
     public Result getUserById(@PathVariable Long userid) {
         UserVO user = userService.getUserById(userid);
         return Result.ok(user);
@@ -72,10 +71,10 @@ public class UserController {
 
     /**
      * 修改用户信息
-     * @param userId
-     * @return
+     * @param userId 用户id
+     * @return       返回码
      */
-    @PutMapping("/{userId}")
+    @PutMapping("/user/{userId}")
     public Result updateUser(@PathVariable Long userId, @RequestBody UserUpdateDTO userUpdateDTO) {
         UserUpdateVO user = userService.updateUser(userId, userUpdateDTO);
         return Result.ok(user);
@@ -83,9 +82,9 @@ public class UserController {
 
     /**
      * 密码重置
-     * @return
+     * @return 返回码
      */
-    @PostMapping("/reset-password")
+    @PostMapping("/user/reset-password")
     public Result resetPassword(Long userId, String password) {
         userService.resetPassword(userId, password);
         return Result.ok("修改密码成功");

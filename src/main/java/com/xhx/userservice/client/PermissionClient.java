@@ -9,12 +9,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * @author master
  */
-@FeignClient("permission-service")
+@FeignClient(value = "permission-service")
 public interface PermissionClient {
 
     /**
      * 调用权限管理接口绑定默认角色
-     * @return
+     * @return 绑定结果
      */
     @PostMapping("/permission/bindDefaultRole")
     Result bindDefaultRole(@RequestParam("userId") Long userId);

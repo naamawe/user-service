@@ -39,7 +39,7 @@ public class JwtProperties {
 
     /**
      * 设置
-     * @param location
+     * @param location location
      */
     public void setLocation(Resource location) {
         this.location = location;
@@ -55,7 +55,7 @@ public class JwtProperties {
 
     /**
      * 设置
-     * @param password
+     * @param password  password
      */
     public void setPassword(String password) {
         this.password = password;
@@ -71,7 +71,7 @@ public class JwtProperties {
 
     /**
      * 设置
-     * @param alias
+     * @param alias  alias
      */
     public void setAlias(String alias) {
         this.alias = alias;
@@ -87,7 +87,7 @@ public class JwtProperties {
 
     /**
      * 设置
-     * @param tokenTTL
+     * @param tokenTTL tokenTTL
      */
     public void setTokenTTL(Duration tokenTTL) {
         this.tokenTTL = tokenTTL;

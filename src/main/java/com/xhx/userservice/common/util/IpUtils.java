@@ -5,7 +5,7 @@ import javax.servlet.http.HttpServletRequest;
 
 /**
  * 此工具类由AI生成
- * author: ChatGPT
+ * @author: ChatGPT
  */
 public class IpUtils {
     /**

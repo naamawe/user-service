@@ -2,9 +2,6 @@ spring:
   application:
     name: user-service
   shardingsphere:
-    transaction:
-      enabled: true
-      type: SEATA
     datasource:
       names: ds0, ds1
       ds0:
@@ -21,6 +18,9 @@ spring:
         password: '050126'
     rules:
       sharding:
+        transaction:
+          type: BASE
+          provider-type: Seata
         tables:
           users:
             actual-data-nodes: ds0.users_0,ds0.users_1,ds1.users_0,ds1.users_1
@@ -45,7 +45,7 @@ spring:
       sql-show: true
       executor-size: 16
       max-connections-size-per-query: 1
-      check-table-metadata-enabled: false
+      check-table-metadata-enabled: true
       proxy-database-type: MySQL
       show-sql: true
       acceptor-size: 16
@@ -73,7 +73,7 @@ spring:
     proxy-target-class: false
 mybatis:
   mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.xhx.userservice.entiey.pojo
+  type-aliases-package: com.xhx.userservice.entity.pojo
   configuration:
     map-underscore-to-camel-case: true
 server:
@@ -81,6 +81,8 @@ server:
 logging:
   level:
     org.apache.shardingsphere: DEBUG
+    org.apache.ibatis: DEBUG
+    java.sql: DEBUG
 seata:
   application-id: user-service
   registry: # TC服务注册中心的配置，微服务根据这些信息去注册中心获取tc服务地址
@@ -97,13 +99,10 @@ seata:
     vgroup-mapping: # 事务组与tc集群的映射关系
       my_tx_group: "default"
   enable-auto-data-source-proxy: false
+  enabled: true
 system:
   jwt:
     location: classpath:JWT.jks
     alias: hmall
     password: hmall123
     tokenTTL: 30m
-  auth:
-    excludePaths:
-      - /users/login
-      - /users/register

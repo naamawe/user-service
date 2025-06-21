@@ -77,11 +77,11 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 用户注册
-     * @param userDTO
-     * @param ip
+     * @param userDTO 用户信息
+     * @param ip      用户注册的IP
      */
     @Override
-    @GlobalTransactional(name = USER_SERVICE_GROUP,  rollbackFor = Exception.class)
+    @GlobalTransactional
     public void register(UserDTO userDTO, String ip) {
 
         User user = BeanUtil.copyProperties(userDTO, User.class);
@@ -107,9 +107,9 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 用户登录
-     * @param loginDTO
-     * @param ip
-     * @return
+     * @param loginDTO 登录信息
+     * @param ip       用户登录的 IP
+     * @return         登录成功后的用户信息
      */
     @Override
     public UserLoginVO login(LoginDTO loginDTO, String ip) {
@@ -145,9 +145,9 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 获取用户列表
-     * @param page
-     * @param size
-     * @return
+     * @param page 页码
+     * @param size 每页数量
+     * @return     用户列表
      */
     @Override
     public PageInfo<UserVO> getUser(int page, int size) {
@@ -176,8 +176,8 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 获取用户信息
-     * @param userId
-     * @return
+     * @param userId 用户id
+     * @return       用户信息
      */
     @Override
     public UserVO getUserById(Long userId) {
@@ -209,9 +209,9 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 更新用户信息
-     * @param userId
-     * @param userUpdateDTO
-     * @return
+     * @param userId        用户id
+     * @param userUpdateDTO 用户信息
+     * @return              更新后的用户信息
      */
     @Override
     public UserUpdateVO updateUser(Long userId, UserUpdateDTO userUpdateDTO) {
@@ -297,15 +297,15 @@ public class UserServiceImpl implements UserService {
         Map<String, Object> extraDetail = new HashMap<>();
         extraDetail.put("changes", changeLogs);
 
-        constructAndSendMessage(currentUserId, ip, USER_UPDATE, USER_UPDATE_SUCCESS, extraDetail);
+        constructAndSendMessage(currentUserId, ip, extraDetail);
 
         return vo;
     }
 
     /**
      * 重置密码
-     * @param userId
-     * @param password
+     * @param userId   用户ID
+     * @param password 新密码
      */
     @Override
     public void resetPassword(Long userId, String password) {
@@ -343,56 +343,13 @@ public class UserServiceImpl implements UserService {
         constructAndSendMessage(currentUserId, UserContext.getIp(), USER_RESET_PASSWORD, USER_RESET_PASSWORD_SUCCESS);
     }
 
+
     /**
-     * 构造消息
-     * @param userId
-     * @param ip
-     * @param action
-     * @param message
-     * @return
+     * 分布式锁获取用户信息
+     * @param redisKey 锁的key
+     * @param userId   用户id
+     * @return 用户信息
      */
-    private void constructAndSendMessage(Long userId, String ip, String action, String message){
-        OperationLogDTO logDTO = new OperationLogDTO();
-        logDTO.setUserId(userId);
-        logDTO.setAction(action);
-        logDTO.setIp(ip);
-        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
-        Map<String, Object> detail = new HashMap<>();
-        detail.put(MESSAGE,message);
-        logDTO.setDetail(detail);
-
-        try {
-            rabbitTemplate.convertAndSend(
-                    EXCHANGE,
-                    USER_ROUTING_KEY,
-                    logDTO
-            );
-        } catch (AmqpException e) {
-            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
-        }
-    }
-    private void constructAndSendMessage(Long userId, String ip, String action, String message, Map<String, Object> extraDetail) {
-        OperationLogDTO logDTO = new OperationLogDTO();
-        logDTO.setUserId(userId);
-        logDTO.setAction(action);
-        logDTO.setIp(ip);
-        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
-
-        Map<String, Object> detail = new HashMap<>();
-        detail.put(MESSAGE, message);
-        if (extraDetail != null) {
-            detail.putAll(extraDetail);
-        }
-        logDTO.setDetail(detail);
-
-        try {
-            rabbitTemplate.convertAndSend(EXCHANGE, USER_ROUTING_KEY, logDTO);
-        } catch (AmqpException e) {
-            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
-        }
-    }
-
-
     private User getUserWithLock(String redisKey, Long userId) {
         RLock lock = redissonClient.getLock(LOCK_USER + userId);
         boolean locked = false;
@@ -435,6 +392,11 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    /**
+     * 分布式锁获取角色权限信息
+     * @param userId 用户id
+     * @return       角色权限信息
+     */
     private String getRoleFromCacheOrRPC(Long userId) {
         String cacheKey = USER_ROLE_KEY + userId;
 
@@ -493,4 +455,59 @@ public class UserServiceImpl implements UserService {
         return role;
     }
 
+    /**
+     * 构造消息
+     * @param userId  用户id
+     * @param ip      ip
+     * @param action  操作
+     * @param message 消息
+     */
+    private void constructAndSendMessage(Long userId, String ip, String action, String message){
+        OperationLogDTO logDTO = new OperationLogDTO();
+        logDTO.setUserId(userId);
+        logDTO.setAction(action);
+        logDTO.setIp(ip);
+        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
+        Map<String, Object> detail = new HashMap<>();
+        detail.put(MESSAGE,message);
+        logDTO.setDetail(detail);
+
+        try {
+            rabbitTemplate.convertAndSend(
+                    EXCHANGE,
+                    USER_ROUTING_KEY,
+                    logDTO
+            );
+        } catch (AmqpException e) {
+            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
+        }
+    }
+
+    /**
+     * 构造更新消息
+     *
+     * @param userId      用户ID
+     * @param ip          IP
+     * @param extraDetail 额外信息
+     */
+    private void constructAndSendMessage(Long userId, String ip, Map<String, Object> extraDetail) {
+        OperationLogDTO logDTO = new OperationLogDTO();
+        logDTO.setUserId(userId);
+        logDTO.setAction(com.xhx.userservice.common.constant.UserConstant.USER_UPDATE);
+        logDTO.setIp(ip);
+        logDTO.setGmtCreate(new Timestamp(System.currentTimeMillis()));
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put(MESSAGE, com.xhx.userservice.common.constant.UserConstant.USER_UPDATE_SUCCESS);
+        if (extraDetail != null) {
+            detail.putAll(extraDetail);
+        }
+        logDTO.setDetail(detail);
+
+        try {
+            rabbitTemplate.convertAndSend(EXCHANGE, USER_ROUTING_KEY, logDTO);
+        } catch (AmqpException e) {
+            throw new MessageException(OPERATION_LOG_SEND_FAILURE);
+        }
+    }
 }

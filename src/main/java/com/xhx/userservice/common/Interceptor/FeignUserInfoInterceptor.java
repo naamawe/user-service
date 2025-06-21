@@ -2,6 +2,7 @@ package com.xhx.userservice.common.Interceptor;
 
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
+import io.seata.core.context.RootContext;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -24,9 +25,6 @@ public class FeignUserInfoInterceptor implements RequestInterceptor {
         }
 
         HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
-        if (request == null) {
-            return;
-        }
 
         // 获取请求头中的用户信息
         String userId = request.getHeader("user-Info");
@@ -41,6 +39,11 @@ public class FeignUserInfoInterceptor implements RequestInterceptor {
         }
         if (ip != null) {
             template.header("user-Ip", ip);
+        }
+
+        String xid = RootContext.getXID();
+        if (xid != null) {
+            template.header(RootContext.KEY_XID, xid);
         }
     }
 }

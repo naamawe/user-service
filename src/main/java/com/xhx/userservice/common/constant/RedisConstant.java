@@ -1,5 +1,8 @@
 package com.xhx.userservice.common.constant;
 
+/**
+ * @author master
+ */
 public class RedisConstant {
     public static final String NULL = "null";
 

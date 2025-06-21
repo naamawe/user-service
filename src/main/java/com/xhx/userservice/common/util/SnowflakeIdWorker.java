@@ -10,22 +10,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class SnowflakeIdWorker {
 
-    private final static long twepoch = 1577808000000L;
+    private final static long TWEPOCH = 1577808000000L;
 
-    private final static long workerIdBits = 5L;
-    private final static long datacenterIdBits = 5L;
-    private final static long maxWorkerId = -1L ^ (-1L << workerIdBits);
-    private final static long maxDatacenterId = -1L ^ (-1L << datacenterIdBits);
+    private final static long WORKER_ID_BITS = 5L;
+    private final static long DATACENTER_ID_BITS = 5L;
+    private final static long MAX_WORKER_ID = ~(-1L << WORKER_ID_BITS);
+    private final static long MAX_DATACENTER_ID = ~(-1L << DATACENTER_ID_BITS);
 
-    private final static long sequenceBits = 12L;
+    private final static long SEQUENCE_BITS = 12L;
 
-    private final static long workerIdShift = sequenceBits;
-    private final static long datacenterIdShift = sequenceBits + workerIdBits;
-    private final static long timestampLeftShift = sequenceBits + workerIdBits + datacenterIdBits;
-    private final static long sequenceMask = -1L ^ (-1L << sequenceBits);
+    private final static long WORKER_ID_SHIFT = SEQUENCE_BITS;
+    private final static long DATACENTER_ID_SHIFT = SEQUENCE_BITS + WORKER_ID_BITS;
+    private final static long TIMESTAMP_LEFT_SHIFT = SEQUENCE_BITS + WORKER_ID_BITS + DATACENTER_ID_BITS;
+    private final static long SEQUENCE_MASK = ~(-1L << SEQUENCE_BITS);
 
-    private long workerId;
-    private long datacenterId;
+    private final long workerId;
+    private final long datacenterId;
     private long sequence = 0L;
     private long lastTimestamp = -1L;
 
@@ -34,10 +34,10 @@ public class SnowflakeIdWorker {
             @Value("${snowflake.workerId:1}") long workerId,
             @Value("${snowflake.datacenterId:1}") long datacenterId) {
 
-        if (workerId > maxWorkerId || workerId < 0) {
+        if (workerId > MAX_WORKER_ID || workerId < 0) {
             throw new IllegalArgumentException("workerId out of range");
         }
-        if (datacenterId > maxDatacenterId || datacenterId < 0) {
+        if (datacenterId > MAX_DATACENTER_ID || datacenterId < 0) {
             throw new IllegalArgumentException("datacenterId out of range");
         }
         this.workerId = workerId;
@@ -52,7 +52,7 @@ public class SnowflakeIdWorker {
         }
 
         if (lastTimestamp == timestamp) {
-            sequence = (sequence + 1) & sequenceMask;
+            sequence = (sequence + 1) & SEQUENCE_MASK;
             if (sequence == 0) {
                 while (timestamp <= lastTimestamp) {
                     timestamp = System.currentTimeMillis();
@@ -63,9 +63,9 @@ public class SnowflakeIdWorker {
         }
         lastTimestamp = timestamp;
 
-        return ((timestamp - twepoch) << timestampLeftShift)
-                | (datacenterId << datacenterIdShift)
-                | (workerId << workerIdShift)
+        return ((timestamp - TWEPOCH) << TIMESTAMP_LEFT_SHIFT)
+                | (datacenterId << DATACENTER_ID_SHIFT)
+                | (workerId << WORKER_ID_SHIFT)
                 | sequence;
     }
 }
