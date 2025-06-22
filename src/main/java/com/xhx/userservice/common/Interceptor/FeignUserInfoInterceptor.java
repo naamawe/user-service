@@ -11,7 +11,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 
 /**
- * 此工具类由AI生成
+ * 此工具类部分由AI生成
  * @author ChatGPT
  */
 @Component

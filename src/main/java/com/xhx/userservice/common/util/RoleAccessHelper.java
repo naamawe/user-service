@@ -62,8 +62,7 @@ public class RoleAccessHelper {
         };
     }
 
-    private static List<Long> getAdminUserIdsWithCache(PermissionClient permissionClient, RedisTemplate<String, Object> redisTemplate, RedissonClient redissonClient
-    ) {
+    private static List<Long> getAdminUserIdsWithCache(PermissionClient permissionClient, RedisTemplate<String, Object> redisTemplate, RedissonClient redissonClient) {
         String cacheKey = "user:ids:admin";
         List<Long> userIds = null;
 

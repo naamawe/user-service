@@ -85,7 +85,7 @@ public class UserController {
      * @return 返回码
      */
     @PostMapping("/user/reset-password")
-    public Result resetPassword(Long userId, String password) {
+    public Result resetPassword(@RequestParam Long userId, @RequestParam String password) {
         userService.resetPassword(userId, password);
         return Result.ok("修改密码成功");
     }

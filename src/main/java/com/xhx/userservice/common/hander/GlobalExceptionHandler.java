@@ -38,4 +38,9 @@ public class GlobalExceptionHandler {
     public Result handleAccessDeniedException(AccessDeniedException e) {
         return Result.fail(e.getMessage());
     }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public Result handleAccessDeniedException(IllegalArgumentException e) {
+        return Result.fail(e.getMessage());
+    }
 }

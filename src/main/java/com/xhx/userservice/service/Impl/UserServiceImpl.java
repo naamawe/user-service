@@ -84,6 +84,23 @@ public class UserServiceImpl implements UserService {
     @GlobalTransactional
     public void register(UserDTO userDTO, String ip) {
 
+        if (userDTO.getUsername() == null || userDTO.getUsername().isBlank()) {
+            throw new IllegalArgumentException(NOT_NULL_USERNAME);
+        }
+        if (userDTO.getPassword() == null || userDTO.getPassword().isBlank()) {
+            throw new IllegalArgumentException(NOT_NULL_PASSWORD);
+        }
+        if (userDTO.getEmail() != null && !userDTO.getEmail().isBlank()) {
+            if (!userDTO.getEmail().matches("^[\\w-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+                throw new IllegalArgumentException(EMAIL_FORMAT_ERROR);
+            }
+        }
+        if (userDTO.getPhone() != null && !userDTO.getPhone().isBlank()) {
+            if (!userDTO.getPhone().matches("^1[3-9]\\d{9}$")) {
+                throw new IllegalArgumentException(PHONE_FORMAT_ERROR);
+            }
+        }
+
         User user = BeanUtil.copyProperties(userDTO, User.class);
 
         long userId = idWorker.nextId();
@@ -214,6 +231,18 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public UserUpdateVO updateUser(Long userId, UserUpdateDTO userUpdateDTO) {
+
+        if (userUpdateDTO.getEmail() != null && !userUpdateDTO.getEmail().isBlank()) {
+            if (!userUpdateDTO.getEmail().matches("^[\\w-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+                throw new IllegalArgumentException(EMAIL_FORMAT_ERROR);
+            }
+        }
+        if (userUpdateDTO.getPhone() != null && !userUpdateDTO.getPhone().isBlank()) {
+            if (!userUpdateDTO.getPhone().matches("^1[3-9]\\d{9}$")) {
+                throw new IllegalArgumentException(PHONE_FORMAT_ERROR);
+            }
+        }
+
         String ip = UserContext.getIp();
         Long currentUserId = UserContext.getUser();
         String role = UserContext.getRole();
@@ -232,10 +261,16 @@ public class UserServiceImpl implements UserService {
 
         String requestedRole = userUpdateDTO.getRole();
         if (requestedRole != null && !requestedRole.equals(targetRole)) {
+            if (!USER_ROLE_SUPER_ADMIN.equals(role)) {
+                throw new AccessDeniedException(ONLY_SUPER_ADMIN_CAN_UPDATE_ROLE);
+            }
+
             if (USER_ROLE_ADMIN.equals(requestedRole)) {
                 permissionClient.upgradeToAdmin(userId);
             } else if (USER_ROLE_USER.equals(requestedRole)) {
                 permissionClient.downgradeToUser(userId);
+            }else {
+                throw new IllegalArgumentException(UNSUPPORT_TARGET_ROLE + requestedRole);
             }
         }
 
@@ -247,27 +282,27 @@ public class UserServiceImpl implements UserService {
         if (userUpdateDTO.getUsername() != null && !userUpdateDTO.getUsername().equals(targetUser.getUsername())) {
             updateUser.setUsername(userUpdateDTO.getUsername());
             changeLogs.add(Map.of(
-                    "field", "username",
-                    "old", targetUser.getUsername(),
-                    "new", userUpdateDTO.getUsername()
+                    FIELD, USER_NAME,
+                    OLD, targetUser.getUsername(),
+                    NEW, userUpdateDTO.getUsername()
             ));
             needUpdate = true;
         }
         if (userUpdateDTO.getEmail() != null && !userUpdateDTO.getEmail().equals(targetUser.getEmail())) {
             updateUser.setEmail(userUpdateDTO.getEmail());
             changeLogs.add(Map.of(
-                    "field", "email",
-                    "old", String.valueOf(targetUser.getEmail()),
-                    "new", String.valueOf(userUpdateDTO.getEmail())
+                    FIELD, EMAIL,
+                    OLD, String.valueOf(targetUser.getEmail()),
+                    NEW, String.valueOf(userUpdateDTO.getEmail())
             ));
             needUpdate = true;
         }
         if (userUpdateDTO.getPhone() != null && !userUpdateDTO.getPhone().equals(targetUser.getPhone())) {
             updateUser.setPhone(userUpdateDTO.getPhone());
             changeLogs.add(Map.of(
-                    "field", "phone",
-                    "old", String.valueOf(targetUser.getPhone()),
-                    "new", String.valueOf(userUpdateDTO.getPhone())
+                    FIELD, PHONE,
+                    OLD, String.valueOf(targetUser.getPhone()),
+                    NEW, String.valueOf(userUpdateDTO.getPhone())
             ));
             needUpdate = true;
         }
@@ -294,7 +329,7 @@ public class UserServiceImpl implements UserService {
         vo.setGmtCreate(targetUser.getGmtCreate());
 
         Map<String, Object> extraDetail = new HashMap<>();
-        extraDetail.put("changes", changeLogs);
+        extraDetail.put(CHANGES, changeLogs);
 
         constructAndSendMessage(currentUserId, ip, extraDetail);
 
@@ -315,7 +350,7 @@ public class UserServiceImpl implements UserService {
         User targetUser = userRedisTemplate.opsForValue().get(redisKey);
 
         if (targetUser == null) {
-            targetUser = getUserWithLock(redisKey, userId);
+            getUserWithLock(redisKey, userId);
         } else if (NULL.equals(targetUser.getUsername())) {
             throw new NullUserException(USER_NOT_EXIST);
         }

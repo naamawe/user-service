@@ -5,6 +5,13 @@ package com.xhx.userservice.common.constant;
  */
 public class MessageConstant {
     public static final String MESSAGE = "message";
+    public static final String FIELD = "field";
+    public static final String OLD = "old";
+    public static final String NEW = "new";
+    public static final String USER_NAME = "username";
+    public static final String EMAIL = "email";
+    public static final String PHONE = "phone";
+    public static final String CHANGES = "changes";
     public static final String BIND_ERROR = "绑定角色失败";
     public static final String USER_NOT_EXIST = "用户不存在";
     public static final String PASSWORD_ERROR = "密码错误";

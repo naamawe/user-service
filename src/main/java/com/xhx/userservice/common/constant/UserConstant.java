@@ -21,4 +21,11 @@ public class UserConstant {
     public static final String USER_ROLE_ADMIN = "admin";
     public static final String USER_ROLE_SUPER_ADMIN = "super_admin";
 
+    public static final String NOT_NULL_USERNAME = "用户名不能为空";
+    public static final String NOT_NULL_PASSWORD = "密码不能为空";
+    public static final String EMAIL_FORMAT_ERROR = "邮箱格式不正确";
+    public static final String PHONE_FORMAT_ERROR = "手机号格式不正确";
+    public static final String ONLY_SUPER_ADMIN_CAN_UPDATE_ROLE = "只有超级管理员可以修改用户权限";
+    public static final String UNSUPPORT_TARGET_ROLE = "不支持的目标角色";
+
 }
